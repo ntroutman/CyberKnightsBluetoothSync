@@ -51,6 +51,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BluetoothFileServer.cs" />
+    <Compile Include="MessageHandler.cs" />
+    <Compile Include="DataStream.cs" />
     <Compile Include="SyncMainForm.cs">
       <SubType>Form</SubType>
     </Compile>

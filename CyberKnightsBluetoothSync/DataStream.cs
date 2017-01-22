@@ -7,34 +7,40 @@ using System.Threading.Tasks;
 
 namespace CyberKnightsBluetoothSync
 {
-    class DataStreamReader
+    /**
+     * Handles reading data from a stream written by Java in Network Byte Order.
+     * This also internally handles any buffering needed to ensure multi-byte reads
+     * only return when the full payload has been read.
+     */
+    class DataStream
     { 
-        private byte[] buffer = new byte[1024];
-        private Stream stream;
+        private byte[] Buffer = new byte[1024];
+        private Stream Stream;
 
-        public DataStreamReader(Stream stream)
+        public DataStream(Stream stream)
         {
-            this.stream = stream;
+            this.Stream = stream;
 
         }
 
         private byte[] ReadExactly(int count)
         {
-            if (count >= buffer.Length)
+            if (count >= Buffer.Length)
             {
-                buffer = new byte[count * 2];
+                Buffer = new byte[count * 2];
             }
 
             int offset = 0;
             while (offset < count)
             {
-                int read = stream.Read(buffer, offset, count - offset);
+                int read = Stream.Read(Buffer, offset, count - offset);
+                Console.WriteLine("    Read {0} @ {1}/{2}: [{3}]", read, (offset + read), count, String.Join(" ", Buffer.Take(count).ToArray()));
                 if (read == 0)
                     throw new System.IO.EndOfStreamException();
                 offset += read;
             }
             System.Diagnostics.Debug.Assert(offset == count);
-            return buffer;
+            return Buffer;
         }
 
         public int ReadInt1()
@@ -42,6 +48,10 @@ namespace CyberKnightsBluetoothSync
             return ReadExactly(1)[0];
         }
 
+        public void WriteInt1(int v)
+        {
+            Stream.WriteByte((byte) v);
+        }
 
         public int ReadInt16()
         {
@@ -56,13 +66,31 @@ namespace CyberKnightsBluetoothSync
 
         public int ReadInt32()
         {
-            byte[] bytes = ReadExactly(2);
+            byte[] bytes = ReadExactly(4);
             if (BitConverter.IsLittleEndian)
             {
                 Array.Reverse(bytes, 0, 4);
             }
             int v = BitConverter.ToInt32(bytes, 0);
             return v;
+        }
+
+        public long ReadInt64()
+        {
+            byte[] bytes = ReadExactly(8);
+            if (BitConverter.IsLittleEndian)
+            {
+                Array.Reverse(bytes, 0, 8);
+            }
+            long v = BitConverter.ToInt64(bytes, 0);
+            return v;
+        }
+
+        public String ReadUTF8()
+        {
+            int len = ReadInt16();
+            String s = System.Text.Encoding.UTF8.GetString(ReadExactly(len), 0, len);
+            return s;
         }
 
         public byte[] ReadBytes(int len)
@@ -77,8 +105,8 @@ namespace CyberKnightsBluetoothSync
             int offset = 0;
             while (offset < len)
             {
-                int read = stream.Read(buffer, 0, Math.Min(buffer.Length, len - offset));
-                destinationStream.Write(buffer, 0, read);
+                int read = Stream.Read(Buffer, 0, Math.Min(Buffer.Length, len - offset));
+                destinationStream.Write(Buffer, 0, read);
                 if (read == 0)
                     throw new System.IO.EndOfStreamException();
                 offset += read;
@@ -86,11 +114,9 @@ namespace CyberKnightsBluetoothSync
             System.Diagnostics.Debug.Assert(offset == len);
         }
 
-        public String ReadUTF8()
+        internal void Flush()
         {
-            int len = ReadInt16();
-            String s = System.Text.Encoding.UTF8.GetString(ReadExactly(len), 0, len);
-            return s;
+            Stream.Flush();
         }
     }
 }
